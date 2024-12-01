@@ -123,4 +123,15 @@ else
     fi
 fi
 
+# Install xclip if necessary
+if ! command_exists xclip; then
+    echo "xclip is not installed."
+    if confirm "Do you want to install xclip?" "n"; then
+        sudo pacman -S --noconfirm xclip || { echo "Failed to install xclip. Exiting..."; exit 1; }
+    fi
+else
+    echo "xclip is already installed."
+fi
+
 echo "Setup completed successfully."
+
