@@ -14,11 +14,18 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Initial pacman-key setup
+if confirm "Do you want to initialize and populate pacman keys before updating the system?" "n"; then
+    echo "Initializing pacman keys..."
+    sudo pacman-key --init || { echo "Failed to initialize pacman keys. Exiting..."; exit 1; }
+    sudo pacman-key --populate archlinux || { echo "Failed to populate pacman keys. Exiting..."; exit 1; }
+fi
+
 # Update the system
-echo "Updating the system..."
+echo "=== Updating the system ==="
 sudo pacman -Syu --noconfirm || { echo "System update failed. Exiting..."; exit 1; }
 
-# Check and/or install git
+# Check and install git
 if ! command_exists git; then
     echo "Git is not installed."
     if confirm "Do you want to install Git?" "n"; then
@@ -29,69 +36,85 @@ if ! command_exists git; then
     fi
 fi
 
-# Verify git installation
-if ! command_exists git; then
-    echo "Git could not be installed correctly. Exiting..."
-    exit 1
-fi
-
-# Verify git version
-echo "Git version:"
-git --version || { echo "Failed to get Git version. Exiting..."; exit 1; }
-
-# Ask for the GitHub PAT
+# Clone the .dotfiles repository
+echo "=== Cloning the .dotfiles repository ==="
 read -sp "Enter your GitHub PAT: " pat
 echo
 
-# Configure Git credentials
 git config --global credential.helper store
-
-# Create a credentials file for git
 echo "https://g6re:$pat@github.com" > ~/.git-credentials
-
-# Clone the .dotfiles repository
-echo "Cloning the .dotfiles repository..."
 git clone --recurse-submodules https://github.com/g6re/.dotfiles.git ~/.dotfiles || { echo "Failed to clone the repository. Exiting..."; exit 1; }
-
-# Clean up the credentials file
 rm -f ~/.git-credentials
 
-# SSH Setup
+# Tmux setup
+echo "=== Configuring Tmux ==="
+if ! command_exists tmux; then
+    if confirm "Do you want to install Tmux?" "n"; then
+        sudo pacman -S --noconfirm tmux || { echo "Failed to install Tmux. Exiting..."; exit 1; }
+    fi
+fi
+
+if command_exists tmux && confirm "Do you want to install the Tmux configuration?" "n"; then
+    if [ -f ~/.tmux.conf ]; then
+        if confirm "The file ~/.tmux.conf already exists. Do you want to overwrite it?" "n"; then
+            rm ~/.tmux.conf
+        fi
+    fi
+    cp ~/.dotfiles/.tmux/.tmux.conf ~/
+fi
+
+# Neovim setup
+echo "=== Configuring Neovim ==="
+if ! command_exists nvim; then
+    if confirm "Do you want to install Neovim from source?" "n"; then
+        sudo pacman -S --noconfirm cmake unzip ninja gettext make gcc || { echo "Failed to install dependencies. Exiting..."; exit 1; }
+
+        echo "Downloading and compiling Neovim..."
+        git clone https://github.com/neovim/neovim.git ~/neovim || { echo "Failed to clone Neovim. Exiting..."; exit 1; }
+        cd ~/neovim || exit
+        make CMAKE_BUILD_TYPE=Release || { echo "Failed to compile Neovim. Exiting..."; exit 1; }
+        sudo make install || { echo "Failed to install Neovim. Exiting..."; exit 1; }
+        cd - || exit
+        rm -rf ~/neovim
+    fi
+fi
+
+if command_exists nvim && confirm "Do you want to install Neovim configuration?" "n"; then
+    mkdir -p ~/.config/nvim
+    cp -r ~/.dotfiles/.nvim/* ~/.config/nvim/
+fi
+
+# SSH setup
+echo "=== Configuring SSH ==="
 if ! command_exists sshd; then
-    echo "SSH is not installed."
     if confirm "Do you want to install SSH?" "n"; then
         sudo pacman -S --noconfirm openssh || { echo "Failed to install SSH. Exiting..."; exit 1; }
     fi
 fi
 
 if command_exists sshd; then
-    echo "SSH is installed."
     if confirm "Do you want to configure SSH?" "n"; then
-        # Clone .ssh sub-repository if not already present
         if [ ! -d ~/.dotfiles/.ssh ]; then
-            echo "Cloning .ssh repository..."
-            git clone https://github.com/g6re/.ssh.git ~/.dotfiles/.ssh || { echo "Failed to clone the SSH repository. Exiting..."; exit 1; }
+            git submodule update --init --recursive || { echo "Failed to update SSH submodule. Exiting..."; exit 1; }
         fi
 
-        # Move sshd_config to /etc/ssh/
         if [ -f ~/.dotfiles/.ssh/sshd_config ]; then
-            echo "Moving sshd_config to /etc/ssh/..."
-            sudo cp ~/.dotfiles/.ssh/sshd_config /etc/ssh/ || { echo "Failed to move sshd_config. Exiting..."; exit 1; }
+            echo "Copying sshd_config to /etc/ssh/..."
+            sudo cp ~/.dotfiles/.ssh/sshd_config /etc/ssh/ || { echo "Failed to copy sshd_config. Exiting..."; exit 1; }
+            sudo systemctl restart sshd
+            sudo systemctl enable sshd
         else
-            echo "sshd_config file not found in ~/.dotfiles/.ssh/"
+            echo "sshd_config not found in ~/.dotfiles/.ssh/"
         fi
-
-        # Start and enable SSH service
-        echo "Starting and enabling SSH service..."
-        sudo systemctl start sshd
-        sudo systemctl enable sshd
     fi
-else
-    echo "SSH was not installed. Skipping configuration."
 fi
 
-# Continue with tmux setup as in the original script
-# (same for Neovim and other components)
-# ...
+# Install xclip if necessary
+echo "=== Configuring xclip ==="
+if ! command_exists xclip; then
+    if confirm "Do you want to install xclip? (Good for WSL)" "n"; then
+        sudo pacman -S --noconfirm xclip || { echo "Failed to install xclip. Exiting..."; exit 1; }
+    fi
+fi
 
-echo "Setup completed successfully."
+echo "=== Setup completed successfully! ==="
