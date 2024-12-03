@@ -113,12 +113,18 @@ fi
 echo "=== Configuring NGINX ==="
 if confirm "Do you want to install NGINX?" "n"; then
     sudo pacman -S --noconfirm nginx || { echo "Failed to install NGINX. Exiting..."; exit 1; }
-    
+
+    # Check and install rsync if not installed
+    if ! command_exists rsync; then
+        echo "rsync is not installed. Installing rsync..."
+        sudo pacman -S --noconfirm rsync || { echo "Failed to install rsync. Exiting..."; exit 1; }
+    fi
+
     if confirm "Do you want to configure NGINX with .dotfiles/.nginx?" "n"; then
         echo "Copying NGINX configuration files..."
         # Copy everything except .nginx/srv/
         rsync -av --exclude=srv/ ~/.dotfiles/.nginx/ /etc/nginx/ || { echo "Failed to copy NGINX configuration. Exiting..."; exit 1; }
-        
+
         # Copy the contents of .nginx/srv/ to /srv/
         echo "Copying server files to /srv/..."
         sudo rsync -av ~/.dotfiles/.nginx/srv/ /srv/ || { echo "Failed to copy server files. Exiting..."; exit 1; }
@@ -130,13 +136,14 @@ if confirm "Do you want to install NGINX?" "n"; then
         fi
         sudo systemctl restart nginx
     fi
-    
+
     if confirm "Do you want to install PHP-FPM for NGINX?" "n"; then
         sudo pacman -S --noconfirm php-fpm || { echo "Failed to install PHP-FPM. Exiting..."; exit 1; }
         sudo systemctl enable php-fpm
         sudo systemctl start php-fpm
     fi
 fi
+
 
 
 # Install xclip if necessary
