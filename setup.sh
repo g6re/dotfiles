@@ -15,7 +15,7 @@ command_exists() {
 }
 
 # Initial pacman-key setup
-if confirm "Do you want to initialize and populate pacman keys before updating the system?" "n"; then
+if confirm "Do you want to initialize and populate pacman keys before updating the system? (Good for WSL)" "n"; then
     echo "Initializing pacman keys..."
     sudo pacman-key --init || { echo "Failed to initialize pacman keys. Exiting..."; exit 1; }
     sudo pacman-key --populate archlinux || { echo "Failed to populate pacman keys. Exiting..."; exit 1; }
@@ -106,6 +106,23 @@ if command_exists sshd; then
         else
             echo "sshd_config not found in ~/.dotfiles/.ssh/"
         fi
+    fi
+fi
+
+# NGINX and PHP-FPM setup
+echo "=== Configuring NGINX ==="
+if confirm "Do you want to install NGINX?" "n"; then
+    sudo pacman -S --noconfirm nginx || { echo "Failed to install NGINX. Exiting..."; exit 1; }
+    if confirm "Do you want to configure NGINX with .dotfiles/.nginx?" "n"; then
+        sudo cp -r ~/.dotfiles/.nginx/* /etc/nginx/ || { echo "Failed to copy NGINX configuration. Exiting..."; exit 1; }
+        sudo mkdir /etc/nginx/sites-enabled/
+        sudo ln -s /etc/nginx/sites-available/web.conf /etc/nginx/sites-enabled/web.conf
+        sudo systemctl restart nginx
+    fi
+    if confirm "Do you want to install PHP-FPM for NGINX?" "n"; then
+        sudo pacman -S --noconfirm php-fpm || { echo "Failed to install PHP-FPM. Exiting..."; exit 1; }
+        sudo systemctl enable php-fpm
+        sudo systemctl start php-fpm
     fi
 fi
 
