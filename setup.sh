@@ -140,7 +140,9 @@ if confirm "Do you want to install NGINX?" "n"; then
     if confirm "Do you want to install PHP-FPM for NGINX?" "n"; then
         sudo pacman -S --noconfirm php-fpm || { echo "Failed to install PHP-FPM. Exiting..."; exit 1; }
         sudo systemctl enable php-fpm
+        sudo systemctl enable nginx
         sudo systemctl start php-fpm
+        sudo systemctl start nginx
     fi
 fi
 
